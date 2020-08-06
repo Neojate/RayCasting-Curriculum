@@ -190,6 +190,7 @@ var Ray = /** @class */ (function () {
         var intercept = new Point(0, 0);
         var step = new Point(0, 0);
         var nextHorizontal = new Point(0, 0);
+        var nextVertical = new Point(0, 0);
         var collisionH = false;
         var collisionV = false;
         var wallHitH = new Point(0, 0);
@@ -201,6 +202,7 @@ var Ray = /** @class */ (function () {
             down = true;
         if (beta > Math.PI / 2 && beta < 3 * Math.PI / 2)
             left = true;
+        //choque horizontal
         //primera intersección
         intercept.y = Math.floor(this.player.y / this.map.tileHeight) * this.map.tileHeight;
         //si mira hacia abajo incrementamos un tile
@@ -239,8 +241,45 @@ var Ray = /** @class */ (function () {
                 nextHorizontal.y += step.y;
             }
         }
-        this.wallHit.x = wallHitH.x;
-        this.wallHit.y = wallHitH.y;
+        //colision vertical
+        //primera intersección
+        intercept.x = Math.floor(this.player.x / this.map.tileWidth) * this.map.tileWidth;
+        //si apunta a la derecha incrementamos un tile
+        if (!left)
+            intercept.x += this.map.tileWidth;
+        //cateto opuesto
+        var oposite = (intercept.x - this.player.x) * Math.tan(beta);
+        intercept.y += oposite;
+        //distancia de cada paso
+        step.x = this.map.tileWidth;
+        //si vamos a la izquierda invertimos
+        if (left)
+            step.x *= -1;
+        step.y = this.map.tileWidth * Math.tan(beta);
+        if ((!down && step.y > 0) || (down && step.y < 0))
+            step.y *= -1;
+        nextVertical.x = intercept.x;
+        nextVertical.y = intercept.y;
+        //le resto un pixel si voy a la izquierda
+        if (left)
+            nextVertical.x--;
+        while (!collisionV &&
+            nextVertical.x >= 0 && nextVertical.x < this.globals.width &&
+            nextVertical.y >= 0 && nextVertical.y < this.globals.height) {
+            var tileX = ~~(nextVertical.x / this.map.tileWidth);
+            var tileY = ~~(nextVertical.y / this.map.tileHeight);
+            if (this.map.scenario[tileY][tileX].isBlock) {
+                collisionV = true;
+                wallHitV.x = nextVertical.x;
+                wallHitV.y = nextVertical.y;
+            }
+            else {
+                nextVertical.x += step.x;
+                nextVertical.y += step.y;
+            }
+        }
+        this.wallHit.x = wallHitV.x;
+        this.wallHit.y = wallHitV.y;
     };
     Ray.prototype.draw = function () {
         this.cast();
