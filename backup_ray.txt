@@ -1,0 +1,132 @@
+let interceptX: number = 0;
+        let interceptY: number = 0;
+
+        let stepX: number = 0;
+        let stepY: number = 0;
+
+        //obtenemos la dirección del rayo
+        if (this.player.alpha < Math.PI)
+            this.down = true;
+
+        if (this.player.alpha > Math.PI / 2 && this.player.alpha < 3 * Math.PI / 2)
+            this.left = true; 
+
+        //colisiones
+        let collisionH = false;
+        interceptY = Math.floor(this.player.y / this.map.tileHeight) * this.map.tileHeight;
+
+        //si apunta hacia abajo incrementamos un tile
+        if (this.down)
+            interceptY += this.map.tileHeight;
+
+        console.log(this.player.alpha);
+        let neighbour: number = (interceptY - this.player.y) / Math.tan(this.player.alpha);
+        interceptX = this.player.x + neighbour;
+        
+        //la distancia de cada paso
+        stepY = this.map.tileHeight;
+        stepX = stepY / Math.tan(this.player.alpha);
+
+        //si apuntamos hacia arriba
+        if (!this.down)
+            stepY *= -1;
+
+        //comprobamos que el paso x es coherente
+        if ((this.left && stepX > 0) || (!this.left && stepX < 0))
+            stepX *= -1;
+
+        let nextHorizontalX: number = interceptX;
+        let nextHorizontalY: number = interceptY;
+
+        //si apunta hacia arriba restamos un pixel
+        if (!this.down)
+            nextHorizontalY--;
+
+        //bucle para buscar punto de colision
+        while(!collisionH &&
+                nextHorizontalX >= 0 && nextHorizontalX < this.globals.width &&
+                nextHorizontalY >= 0 && nextHorizontalY < this.globals.height) {
+            //obtenemos la casilla redondeando por abajo
+            let tileX: number = ~~(nextHorizontalX / this.map.tileWidth);
+            let tileY: number = ~~(nextHorizontalY / this.map.tileHeight);
+            
+            if (this.map.scenario[tileY][tileX].isBlock) {
+                collisionH = true;
+                this.wallHitHorX = nextHorizontalX;
+                this.wallHitHorY = nextHorizontalY;
+            } else {
+                nextHorizontalX += stepX;
+                nextHorizontalY += stepY;
+            }
+
+        }
+
+        //colision vertical
+        let collisionV: boolean = false; 
+
+        //primera interseccion
+        interceptX = Math.floor(this.player.x / this.map.tileWidth) * this.map.tileWidth;
+
+        //si miramos a la derecha
+        if (!this.left)
+            interceptX += this.map.tileWidth;
+
+        //calculamos cateto opuesto
+        let oposite: number = (interceptX - this.player.x) * Math.tan(this.player.alpha);
+        interceptY = this.player.y + oposite;
+
+        //calculamos cada paso
+        stepX = this.map.tileWidth;
+
+        //si calculos a la izquierda invertimos
+        if (this.left)
+            stepX *= -1;
+
+        stepY = this.map.tileHeight * Math.tan(this.player.alpha); //revisar
+        
+        if ((!this.down && stepY > 0) || (this.down && stepY < 0))
+            stepY *= -1;
+
+        let nextVerticalX: number = stepX;
+        let nextVerticalY: number = stepY
+
+        if (this.left)
+            nextVerticalX--;
+
+        //bucle para detectar colision
+        while(!collisionV &&
+            nextVerticalX >= 0 && nextVerticalX < this.globals.width &&
+            nextVerticalY >= 0 && nextVerticalY < this.globals.height) {
+            
+            //obtenemos la casilla
+            let tileX = ~~(nextVerticalX / this.map.tileWidth);
+            let tileY = ~~(nextVerticalY / this.map.tileHeight);
+
+            if (this.map.scenario[tileY][tileX].isBlock) {
+                collisionV = true;
+                this.wallHitVerX = nextVerticalX;
+                this.wallHitVerY = nextVerticalY;
+            } else {
+                nextVerticalX += stepX;
+                nextVerticalY += stepY;
+            }
+        }
+
+        let distH: number = 9999;
+        let distV: number = 9999;
+
+        if (collisionH) 
+            distH = this.globals.distance(this.player.x, this.player.y, this.wallHitHorX, this.wallHitHorY);
+        if (collisionV) 
+            distV = this.globals.distance(this.player.x, this.player.y, this.wallHitVerX, this.wallHitVerY);
+        
+        if (collisionH < collisionV) {
+            this.wallHitX = this.wallHitHorX;
+            this.wallHitY = this.wallHitHorY;
+        } else {
+            this.wallHitX = this.wallHitVerX;
+            this.wallHitY = this.wallHitVerY;
+        }
+
+        //this.wallHitX = this.wallHitVerX;
+        //this.wallHitY = this.wallHitVerY; 
