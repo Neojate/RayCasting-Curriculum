@@ -195,7 +195,7 @@ var Ray = /** @class */ (function () {
         var collisionV = false;
         var wallHitH = new Point(0, 0);
         var wallHitV = new Point(0, 0);
-        this.wallHit = new Point(0, 0);
+        //this.wallHit = new Point(0, 0);
         var beta = this.player.alpha;
         //obtenemos la dirección del rayo
         if (beta < Math.PI)
@@ -208,7 +208,7 @@ var Ray = /** @class */ (function () {
         //si mira hacia abajo incrementamos un tile
         if (down)
             intercept.y += this.map.tileHeight;
-        //calculos la casilla vecina
+        //cateto contiguo
         var neighbour = (intercept.y - this.player.y) / Math.tan(beta);
         intercept.x = this.player.x + neighbour;
         //calculamos la disancia de cada paso
@@ -249,7 +249,7 @@ var Ray = /** @class */ (function () {
             intercept.x += this.map.tileWidth;
         //cateto opuesto
         var oposite = (intercept.x - this.player.x) * Math.tan(beta);
-        intercept.y += oposite;
+        intercept.y = this.player.y + oposite;
         //distancia de cada paso
         step.x = this.map.tileWidth;
         //si vamos a la izquierda invertimos
@@ -278,8 +278,21 @@ var Ray = /** @class */ (function () {
                 nextVertical.y += step.y;
             }
         }
-        this.wallHit.x = wallHitV.x;
-        this.wallHit.y = wallHitV.y;
+        var distH = 9999;
+        var distV = 9999;
+        if (collisionH)
+            distH = this.globals.distance(this.player.x, this.player.y, wallHitH.x, wallHitH.y);
+        if (collisionV)
+            distV = this.globals.distance(this.player.x, this.player.y, wallHitV.x, wallHitV.y);
+        console.log(distH + ", " + distV);
+        if (distH < distV) {
+            this.wallHit.x = wallHitH.x;
+            this.wallHit.y = wallHitH.y;
+        }
+        else {
+            this.wallHit.x = wallHitV.x;
+            this.wallHit.y = wallHitV.y;
+        }
     };
     Ray.prototype.draw = function () {
         this.cast();

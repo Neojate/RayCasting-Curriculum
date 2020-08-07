@@ -33,7 +33,7 @@ function deleteCanvas(globals: Globals): void {
 class Globals {
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
-    
+
     fps: number = 60;
 
     width: number = 0;
@@ -44,20 +44,20 @@ class Globals {
         this.canvas.width = document.body.clientHeight;//document.body.clientWidth;
         this.canvas.height = document.body.clientHeight;
         this.ctx = this.canvas.getContext('2d');
-        
+
         this.width = this.canvas.width;
         this.height = this.canvas.height;
     }
 
     //método que recibe grados y devuelve radianes
     toRadians(degrees: number): number {
-        return  degrees * (Math.PI / 180);
+        return degrees * (Math.PI / 180);
     }
 
     //método que normaliza ángulos en radianes
     normalizeAngle(radians: number): number {
         radians = radians % (2 * Math.PI);
-        if (radians < 0) 
+        if (radians < 0)
             radians += 2 * Math.PI;
         return radians;
     }
@@ -124,7 +124,7 @@ class Player implements IDrawable, IUpdatable, IMobible {
     rotationSpeed: number = 3;                //velocidad de rotación del jugador en radianes
 
     //estados del jugador
-    moving: Movement = Movement.none;           
+    moving: Movement = Movement.none;
     spining: Spin = Spin.none;
 
     //ray
@@ -180,7 +180,7 @@ class Player implements IDrawable, IUpdatable, IMobible {
     }
 
     move(dir: Direction) {
-        switch(dir) {
+        switch (dir) {
             case Direction.up:
                 this.moving = Movement.foward;
                 break;
@@ -218,7 +218,7 @@ class Player implements IDrawable, IUpdatable, IMobible {
 
 class Ray {
 
-    
+
 
     //coordenadas de choque
     wallHit: Point = new Point(0, 0);
@@ -257,12 +257,12 @@ class Ray {
         let wallHitH: Point = new Point(0, 0);
         let wallHitV: Point = new Point(0, 0);
 
-        this.wallHit = new Point(0, 0);
+        //this.wallHit = new Point(0, 0);
 
         let beta: number = this.player.alpha;
 
         //obtenemos la dirección del rayo
-        if (beta < Math.PI) 
+        if (beta < Math.PI)
             down = true;
         if (beta > Math.PI / 2 && beta < 3 * Math.PI / 2)
             left = true;
@@ -275,7 +275,7 @@ class Ray {
         if (down)
             intercept.y += this.map.tileHeight;
 
-        //calculos la casilla vecina
+        //cateto contiguo
         let neighbour: number = (intercept.y - this.player.y) / Math.tan(beta);
         intercept.x = this.player.x + neighbour;
 
@@ -299,7 +299,7 @@ class Ray {
             nextHorizontal.y--;
 
         //bucle que busca la colision horizontal
-        while(!collisionH &&
+        while (!collisionH &&
             nextHorizontal.x >= 0 && nextHorizontal.x < this.globals.width &&
             nextHorizontal.y >= 0 && nextHorizontal.y < this.globals.height) {
 
@@ -326,11 +326,11 @@ class Ray {
 
         //cateto opuesto
         let oposite: number = (intercept.x - this.player.x) * Math.tan(beta);
-        intercept.y += oposite;
+        intercept.y = this.player.y + oposite;
 
         //distancia de cada paso
         step.x = this.map.tileWidth;
-        
+
         //si vamos a la izquierda invertimos
         if (left)
             step.x *= -1;
@@ -347,7 +347,7 @@ class Ray {
         if (left)
             nextVertical.x--;
 
-        while(!collisionV &&
+        while (!collisionV &&
             nextVertical.x >= 0 && nextVertical.x < this.globals.width &&
             nextVertical.y >= 0 && nextVertical.y < this.globals.height) {
 
@@ -365,19 +365,29 @@ class Ray {
 
         }
 
+        let distH: number = 9999;
+        let distV: number = 9999;
 
-        this.wallHit.x = wallHitV.x;
-        this.wallHit.y = wallHitV.y;
+        if (collisionH)
+            distH = this.globals.distance(this.player.x, this.player.y, wallHitH.x, wallHitH.y);
 
-        
-        
-        
+        if (collisionV)
+            distV = this.globals.distance(this.player.x, this.player.y, wallHitV.x, wallHitV.y);
+
+        console.log(`${distH}, ${distV}`)
+        if (distH < distV) {
+            this.wallHit.x = wallHitH.x;
+            this.wallHit.y = wallHitH.y;
+        } else {
+            this.wallHit.x = wallHitV.x;
+            this.wallHit.y = wallHitV.y;
+        }
 
     }
 
     draw() {
         this.cast();
-        
+
         let destinyX = this.wallHit.x
         let destinyY = this.wallHit.y;
 
@@ -418,12 +428,12 @@ class Map implements IDrawable {
     tileWidth: number = 0;
     tileHeight: number = 0;
 
-    private globals:Globals;
+    private globals: Globals;
 
     constructor(globals: Globals) {
         this.globals = globals;
 
-        this.scenario = this.generatelevel();   
+        this.scenario = this.generatelevel();
 
         this.sizeX = this.scenario[0].length;
         this.sizeY = this.scenario.length;
@@ -433,7 +443,7 @@ class Map implements IDrawable {
     }
 
     draw(): void {
-        for (let y: number = 0; y < this.sizeY; y++ ) {
+        for (let y: number = 0; y < this.sizeY; y++) {
             for (let x: number = 0; x < this.sizeX; x++) {
                 this.globals.ctx.fillStyle = this.scenario[y][x].color;
                 this.globals.ctx.fillRect(x * this.tileWidth, y * this.tileHeight, this.tileWidth, this.tileHeight);
@@ -443,16 +453,16 @@ class Map implements IDrawable {
 
     private generatelevel(): Tile[][] {
         return [
-            [new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1),new Tile(1), new Tile(1), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1), new Tile(1), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1), new Tile(1), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1), new Tile(1), new Tile(0),new Tile(0), new Tile(0), new Tile(1)],
-            [new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1),new Tile(1), new Tile(1), new Tile(1)],
+            [new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1), new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1), new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1), new Tile(1), new Tile(0), new Tile(0), new Tile(0), new Tile(1)],
+            [new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1), new Tile(1)],
         ];
     }
 }
