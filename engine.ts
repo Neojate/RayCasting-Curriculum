@@ -129,6 +129,7 @@ class Player implements IDrawable, IUpdatable, IMobible {
 
     //ray
     ray: Ray;
+    numRay: number = 0;
 
     private playerColor: string = '#ffffff';
     private playerSize: number = 3;
@@ -144,6 +145,7 @@ class Player implements IDrawable, IUpdatable, IMobible {
         this.rotationSpeed = globals.toRadians(this.rotationSpeed);
 
         this.ray = new Ray(globals, map, this, 0);
+        this.numRay = this.globals.width;
     }
 
     draw() {
