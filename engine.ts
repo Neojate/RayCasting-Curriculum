@@ -19,7 +19,7 @@ window.onload = () => {
 
 function gameLoop(globals: Globals, map: Map, player: Player): void {
     deleteCanvas(globals);
-    map.draw();
+    //map.draw();
     player.draw();
     player.update();
 }
@@ -47,6 +47,12 @@ class Globals {
 
         this.width = this.canvas.width;
         this.height = this.canvas.height;
+    }
+
+    //metodo para cargar texturas
+    loadAssets(): void {
+        let wallTexture = new Image();
+        wallTexture.src = 'img/walls.png';
     }
 
     //método que recibe grados y devuelve radianes
@@ -111,25 +117,33 @@ class Controls {
     }
 }
 
-
+//pnj
 class Player implements IDrawable, IUpdatable, IMobible {
 
     //coordenadas del jugador
-    x: number = 10;                             //coordenada X del jugador en píxeles
-    y: number = 10;                             //coordenadas Y del jugador en píxeles
-    alpha: number = 1;                          //angulo actual del jugador en radianes
+    pos: Point = new Point(0, 0);               //coordenadas del jugador en píxeles
+    alpha: number = 0;                          //angulo actual del jugador en radianes
 
     //atributos del jugador
     moveSpeed: number = 3;                      //velocidad de movimiento del jugador en píxeles 
-    rotationSpeed: number = 3;                //velocidad de rotación del jugador en radianes
+    rotationSpeed: number = 3;                  //velocidad de rotación del jugador en radianes
 
     //estados del jugador
     moving: Movement = Movement.none;
     spining: Spin = Spin.none;
 
+    fov: number = 60;                            //campo de visión en grados
+    halfFov: number = 0;                         //mitad del campo de vision en radianes
+
+    incrementAngle: number = 0;                 //incremento del angulo por rayo en radianes       
+    initAngle: number = 0;                      //angulo del primer rayo en radianes
+
     //ray
     ray: Ray;
-    numRay: number = 0;
+    rays: Ray[] = new Array<Ray>();
+    numRay: number = 2000;
+
+    maxDistanceProyection: number = 0;
 
     private playerColor: string = '#ffffff';
     private playerSize: number = 3;
@@ -140,27 +154,43 @@ class Player implements IDrawable, IUpdatable, IMobible {
     constructor(globals: Globals, map: Map, startX: number, startY: number) {
         this.globals = globals;
         this.map = map;
-        this.x = startX;
-        this.y = startY;
+        this.pos = new Point(startX, startY);
         this.rotationSpeed = globals.toRadians(this.rotationSpeed);
 
-        this.ray = new Ray(globals, map, this, 0);
-        this.numRay = this.globals.width;
+        this.ray = new Ray(globals, map, this.pos, this.alpha, 0, 0);
+
+        this.halfFov = globals.toRadians(this.fov / 2);
+
+        this.maxDistanceProyection = globals.height / 2 * Math.tan(this.halfFov);
+
+        this.incrementAngle = globals.toRadians(this.fov / this.numRay);
+
+        //creacion de rayos
+        for (let i: number = 0; i < this.numRay; i++)
+            this.rays[i] = new Ray(this.globals, this.map, this.pos, this.alpha, i, this.maxDistanceProyection);
+        
     }
 
     draw() {
 
-        this.ray.draw();
+        //this.ray.draw();
+
+        //dibujado de los rayos
+        for (let ray of this.rays) {
+            //ray.draw();
+            ray.render();
+        }
+            
 
         //personaje
         this.globals.ctx.fillStyle = this.playerColor;
-        this.globals.ctx.fillRect(this.x - this.playerSize / 2, this.y - this.playerSize / 2, this.playerSize, this.playerSize);
+        this.globals.ctx.fillRect(this.pos.x - this.playerSize / 2, this.pos.y - this.playerSize / 2, this.playerSize, this.playerSize);
 
         //linea de vision
-        let lineFinalX = this.x + Math.cos(this.alpha) * 40;
-        let lineFinalY = this.y + Math.sin(this.alpha) * 40;
+        let lineFinalX = this.pos.x + Math.cos(this.alpha) * 40;
+        let lineFinalY = this.pos.y + Math.sin(this.alpha) * 40;
         this.globals.ctx.beginPath();
-        this.globals.ctx.moveTo(this.x, this.y);
+        this.globals.ctx.moveTo(this.pos.x, this.pos.y);
         this.globals.ctx.lineTo(lineFinalX, lineFinalY);
         this.globals.ctx.strokeStyle = this.playerColor;
         this.globals.ctx.stroke();
@@ -168,17 +198,26 @@ class Player implements IDrawable, IUpdatable, IMobible {
 
     update() {
         //avanzar
-        let newX = this.x + Math.cos(this.alpha) * this.moveSpeed * this.moving;
-        let newY = this.y + Math.sin(this.alpha) * this.moveSpeed * this.moving;
+        let newX = this.pos.x + Math.cos(this.alpha) * this.moveSpeed * this.moving;
+        let newY = this.pos.y + Math.sin(this.alpha) * this.moveSpeed * this.moving;
 
         if (!this.colision(newX, newY)) {
-            this.x = newX;
-            this.y = newY;
+            this.pos.x = newX;
+            this.pos.y = newY;
         }
 
         //girar
         this.alpha += this.spining * this.rotationSpeed;
         this.alpha = this.globals.normalizeAngle(this.alpha);
+
+        //actualizado de los rayos
+        let beta: number = this.alpha - this.halfFov; 
+        for (let ray of this.rays) {
+            beta = this.globals.normalizeAngle(beta + this.incrementAngle);
+            ray.setPos(this.pos);
+            ray.setAlpha(beta);
+        }
+        
     }
 
     move(dir: Direction) {
@@ -218,32 +257,38 @@ class Player implements IDrawable, IUpdatable, IMobible {
 
 }
 
-class Ray {
+class Ray implements IDrawable, IRenderable {
 
-
-
-    //coordenadas de choque
-    wallHit: Point = new Point(0, 0);
-    /*wallHitHorX: number = 0;
-    wallHitHorY: number = 0;
-    wallHitVerX: number = 0;
-    wallHitVerY: number = 0;*/
+    wallHit: Point = new Point(0, 0);                   //punto en el que se choca el rayo
+    distance = 0;
+    
+    wallHeight = 0;                           //alto del muro en pixeles
 
     private incrementAlpha: number = 0;
 
     private globals: Globals;
     private map: Map;
-    private player: Player;
+    private pos: Point;
+    private alpha: number;
+    private column: number;
+    private maxDistanceProyection: number;
 
-    constructor(globals: Globals, map: Map, player: Player, column: number) {
+    constructor(globals: Globals, map: Map, pos: Point, alpha: number, column: number, maxDistanceProyection: number) {
         this.globals = globals;
         this.map = map;
-        this.player = player;
+
+        this.pos = pos;
+        this.alpha = alpha;
+        
+        this.column = column;
+        this.maxDistanceProyection = maxDistanceProyection;
+        
+        this.wallHeight = 500;
 
         this.cast();
     }
 
-    cast() {
+    cast(): void {
         let left: boolean = false;
         let down: boolean = false;
 
@@ -261,7 +306,7 @@ class Ray {
 
         //this.wallHit = new Point(0, 0);
 
-        let beta: number = this.player.alpha;
+        let beta: number = this.alpha;
 
         //obtenemos la dirección del rayo
         if (beta < Math.PI)
@@ -271,15 +316,15 @@ class Ray {
 
         //choque horizontal
         //primera intersección
-        intercept.y = Math.floor(this.player.y / this.map.tileHeight) * this.map.tileHeight;
+        intercept.y = Math.floor(this.pos.y / this.map.tileHeight) * this.map.tileHeight;
 
         //si mira hacia abajo incrementamos un tile
         if (down)
             intercept.y += this.map.tileHeight;
 
         //cateto contiguo
-        let neighbour: number = (intercept.y - this.player.y) / Math.tan(beta);
-        intercept.x = this.player.x + neighbour;
+        let neighbour: number = (intercept.y - this.pos.y) / Math.tan(beta);
+        intercept.x = this.pos.x + neighbour;
 
         //calculamos la disancia de cada paso
         step.y = this.map.tileHeight;
@@ -320,15 +365,15 @@ class Ray {
 
         //colision vertical
         //primera intersección
-        intercept.x = Math.floor(this.player.x / this.map.tileWidth) * this.map.tileWidth;
+        intercept.x = Math.floor(this.pos.x / this.map.tileWidth) * this.map.tileWidth;
 
         //si apunta a la derecha incrementamos un tile
         if (!left)
             intercept.x += this.map.tileWidth;
 
         //cateto opuesto
-        let oposite: number = (intercept.x - this.player.x) * Math.tan(beta);
-        intercept.y = this.player.y + oposite;
+        let oposite: number = (intercept.x - this.pos.x) * Math.tan(beta);
+        intercept.y = this.pos.y + oposite;
 
         //distancia de cada paso
         step.x = this.map.tileWidth;
@@ -371,35 +416,75 @@ class Ray {
         let distV: number = 9999;
 
         if (collisionH)
-            distH = this.globals.distance(this.player.x, this.player.y, wallHitH.x, wallHitH.y);
+            distH = this.globals.distance(this.pos.x, this.pos.y, wallHitH.x, wallHitH.y);
 
         if (collisionV)
-            distV = this.globals.distance(this.player.x, this.player.y, wallHitV.x, wallHitV.y);
+            distV = this.globals.distance(this.pos.x, this.pos.y, wallHitV.x, wallHitV.y);
 
-        console.log(`${distH}, ${distV}`)
         if (distH < distV) {
             this.wallHit.x = wallHitH.x;
             this.wallHit.y = wallHitH.y;
+            this.distance = distH;
         } else {
             this.wallHit.x = wallHitV.x;
             this.wallHit.y = wallHitV.y;
+            this.distance =  distV;
         }
 
     }
 
-    draw() {
+    draw(): void {
         this.cast();
 
         let destinyX = this.wallHit.x
         let destinyY = this.wallHit.y;
 
         this.globals.ctx.beginPath();
-        this.globals.ctx.moveTo(this.player.x, this.player.y);
+        this.globals.ctx.moveTo(this.pos.x, this.pos.y);
         this.globals.ctx.lineTo(destinyX, destinyY);
         this.globals.ctx.strokeStyle = 'red';
         this.globals.ctx.stroke();
-
     }
+
+    render(): void {
+        this.cast();
+
+        let realWallHeight = 500 / this.distance * (250 / 2); 
+        let y0: number =  ~~(this.globals.height / 2) - ~~(realWallHeight / 2);
+        let y1: number = y0 + realWallHeight;
+        let x = this.column;
+
+        this.globals.ctx.beginPath();
+        this.globals.ctx.moveTo(x, y0);
+        this.globals.ctx.lineTo(x, y1);
+        this.globals.ctx.strokeStyle = '#666666';
+        this.globals.ctx.stroke();
+    }
+
+    setPos(pos: Point): void {
+        this.pos = pos;
+    }
+
+    setAlpha(alpha: number): void {
+        this.alpha = alpha;
+    }
+
+}
+
+class Column {
+
+    start: Point;
+    end: Point
+
+    maxHeight: number = 0;                    //alto maximo del muro en pixeles
+
+    constructor(globals: Globals, initPos: Point, distance: number) {
+        this.start = new Point(0, 0);
+        this.end = new Point(0, 0);
+
+        this.maxHeight = globals.height;
+    }
+
 }
 
 class Tile {
@@ -475,6 +560,10 @@ class Map implements IDrawable {
 /********************************************************************************************************************************/
 interface IDrawable {
     draw(): void;
+}
+
+interface IRenderable {
+    render(): void;
 }
 
 interface IUpdatable {

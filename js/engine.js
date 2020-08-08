@@ -15,7 +15,7 @@ window.onload = function () {
 };
 function gameLoop(globals, map, player) {
     deleteCanvas(globals);
-    map.draw();
+    //map.draw();
     player.draw();
     player.update();
 }
@@ -30,12 +30,17 @@ var Globals = /** @class */ (function () {
         this.width = 0;
         this.height = 0;
         this.canvas = document.querySelector('#canvas');
-        this.canvas.width = document.body.clientWidth; //document.body.clientWidth;
+        this.canvas.width = document.body.clientHeight; //document.body.clientWidth;
         this.canvas.height = document.body.clientHeight;
         this.ctx = this.canvas.getContext('2d');
         this.width = this.canvas.width;
         this.height = this.canvas.height;
     }
+    //metodo para cargar texturas
+    Globals.prototype.loadAssets = function () {
+        var wallTexture = new Image();
+        wallTexture.src = 'img/walls.png';
+    };
     //método que recibe grados y devuelve radianes
     Globals.prototype.toRadians = function (degrees) {
         return degrees * (Math.PI / 180);
@@ -94,52 +99,78 @@ var Controls = /** @class */ (function () {
     };
     return Controls;
 }());
+//pnj
 var Player = /** @class */ (function () {
     function Player(globals, map, startX, startY) {
         //coordenadas del jugador
-        this.x = 10; //coordenada X del jugador en píxeles
-        this.y = 10; //coordenadas Y del jugador en píxeles
-        this.alpha = 1; //angulo actual del jugador en radianes
+        this.pos = new Point(0, 0); //coordenadas del jugador en píxeles
+        this.alpha = 0; //angulo actual del jugador en radianes
         //atributos del jugador
         this.moveSpeed = 3; //velocidad de movimiento del jugador en píxeles 
         this.rotationSpeed = 3; //velocidad de rotación del jugador en radianes
         //estados del jugador
         this.moving = Movement.none;
         this.spining = Spin.none;
+        this.fov = 60; //campo de visión en grados
+        this.halfFov = 0; //mitad del campo de vision en radianes
+        this.incrementAngle = 0; //incremento del angulo por rayo en radianes       
+        this.initAngle = 0; //angulo del primer rayo en radianes
+        this.rays = new Array();
+        this.numRay = 2000;
+        this.maxDistanceProyection = 0;
         this.playerColor = '#ffffff';
         this.playerSize = 3;
         this.globals = globals;
         this.map = map;
-        this.x = startX;
-        this.y = startY;
+        this.pos = new Point(startX, startY);
         this.rotationSpeed = globals.toRadians(this.rotationSpeed);
-        this.ray = new Ray(globals, map, this, 0);
+        this.ray = new Ray(globals, map, this.pos, this.alpha, 0, 0);
+        this.halfFov = globals.toRadians(this.fov / 2);
+        this.maxDistanceProyection = globals.height / 2 * Math.tan(this.halfFov);
+        this.incrementAngle = globals.toRadians(this.fov / this.numRay);
+        //creacion de rayos
+        for (var i = 0; i < this.numRay; i++)
+            this.rays[i] = new Ray(this.globals, this.map, this.pos, this.alpha, i, this.maxDistanceProyection);
     }
     Player.prototype.draw = function () {
-        this.ray.draw();
+        //this.ray.draw();
+        //dibujado de los rayos
+        for (var _i = 0, _a = this.rays; _i < _a.length; _i++) {
+            var ray = _a[_i];
+            //ray.draw();
+            ray.render();
+        }
         //personaje
         this.globals.ctx.fillStyle = this.playerColor;
-        this.globals.ctx.fillRect(this.x - this.playerSize / 2, this.y - this.playerSize / 2, this.playerSize, this.playerSize);
+        this.globals.ctx.fillRect(this.pos.x - this.playerSize / 2, this.pos.y - this.playerSize / 2, this.playerSize, this.playerSize);
         //linea de vision
-        var lineFinalX = this.x + Math.cos(this.alpha) * 40;
-        var lineFinalY = this.y + Math.sin(this.alpha) * 40;
+        var lineFinalX = this.pos.x + Math.cos(this.alpha) * 40;
+        var lineFinalY = this.pos.y + Math.sin(this.alpha) * 40;
         this.globals.ctx.beginPath();
-        this.globals.ctx.moveTo(this.x, this.y);
+        this.globals.ctx.moveTo(this.pos.x, this.pos.y);
         this.globals.ctx.lineTo(lineFinalX, lineFinalY);
         this.globals.ctx.strokeStyle = this.playerColor;
         this.globals.ctx.stroke();
     };
     Player.prototype.update = function () {
         //avanzar
-        var newX = this.x + Math.cos(this.alpha) * this.moveSpeed * this.moving;
-        var newY = this.y + Math.sin(this.alpha) * this.moveSpeed * this.moving;
+        var newX = this.pos.x + Math.cos(this.alpha) * this.moveSpeed * this.moving;
+        var newY = this.pos.y + Math.sin(this.alpha) * this.moveSpeed * this.moving;
         if (!this.colision(newX, newY)) {
-            this.x = newX;
-            this.y = newY;
+            this.pos.x = newX;
+            this.pos.y = newY;
         }
         //girar
         this.alpha += this.spining * this.rotationSpeed;
         this.alpha = this.globals.normalizeAngle(this.alpha);
+        //actualizado de los rayos
+        var beta = this.alpha - this.halfFov;
+        for (var _i = 0, _a = this.rays; _i < _a.length; _i++) {
+            var ray = _a[_i];
+            beta = this.globals.normalizeAngle(beta + this.incrementAngle);
+            ray.setPos(this.pos);
+            ray.setAlpha(beta);
+        }
     };
     Player.prototype.move = function (dir) {
         switch (dir) {
@@ -171,17 +202,18 @@ var Player = /** @class */ (function () {
     return Player;
 }());
 var Ray = /** @class */ (function () {
-    function Ray(globals, map, player, column) {
-        //coordenadas de choque
-        this.wallHit = new Point(0, 0);
-        /*wallHitHorX: number = 0;
-        wallHitHorY: number = 0;
-        wallHitVerX: number = 0;
-        wallHitVerY: number = 0;*/
+    function Ray(globals, map, pos, alpha, column, maxDistanceProyection) {
+        this.wallHit = new Point(0, 0); //punto en el que se choca el rayo
+        this.distance = 0;
+        this.wallHeight = 0; //alto del muro en pixeles
         this.incrementAlpha = 0;
         this.globals = globals;
         this.map = map;
-        this.player = player;
+        this.pos = pos;
+        this.alpha = alpha;
+        this.column = column;
+        this.maxDistanceProyection = maxDistanceProyection;
+        this.wallHeight = 500;
         this.cast();
     }
     Ray.prototype.cast = function () {
@@ -196,7 +228,7 @@ var Ray = /** @class */ (function () {
         var wallHitH = new Point(0, 0);
         var wallHitV = new Point(0, 0);
         //this.wallHit = new Point(0, 0);
-        var beta = this.player.alpha;
+        var beta = this.alpha;
         //obtenemos la dirección del rayo
         if (beta < Math.PI)
             down = true;
@@ -204,13 +236,13 @@ var Ray = /** @class */ (function () {
             left = true;
         //choque horizontal
         //primera intersección
-        intercept.y = Math.floor(this.player.y / this.map.tileHeight) * this.map.tileHeight;
+        intercept.y = Math.floor(this.pos.y / this.map.tileHeight) * this.map.tileHeight;
         //si mira hacia abajo incrementamos un tile
         if (down)
             intercept.y += this.map.tileHeight;
         //cateto contiguo
-        var neighbour = (intercept.y - this.player.y) / Math.tan(beta);
-        intercept.x = this.player.x + neighbour;
+        var neighbour = (intercept.y - this.pos.y) / Math.tan(beta);
+        intercept.x = this.pos.x + neighbour;
         //calculamos la disancia de cada paso
         step.y = this.map.tileHeight;
         step.x = step.y / Math.tan(beta);
@@ -243,13 +275,13 @@ var Ray = /** @class */ (function () {
         }
         //colision vertical
         //primera intersección
-        intercept.x = Math.floor(this.player.x / this.map.tileWidth) * this.map.tileWidth;
+        intercept.x = Math.floor(this.pos.x / this.map.tileWidth) * this.map.tileWidth;
         //si apunta a la derecha incrementamos un tile
         if (!left)
             intercept.x += this.map.tileWidth;
         //cateto opuesto
-        var oposite = (intercept.x - this.player.x) * Math.tan(beta);
-        intercept.y = this.player.y + oposite;
+        var oposite = (intercept.x - this.pos.x) * Math.tan(beta);
+        intercept.y = this.pos.y + oposite;
         //distancia de cada paso
         step.x = this.map.tileWidth;
         //si vamos a la izquierda invertimos
@@ -281,17 +313,18 @@ var Ray = /** @class */ (function () {
         var distH = 9999;
         var distV = 9999;
         if (collisionH)
-            distH = this.globals.distance(this.player.x, this.player.y, wallHitH.x, wallHitH.y);
+            distH = this.globals.distance(this.pos.x, this.pos.y, wallHitH.x, wallHitH.y);
         if (collisionV)
-            distV = this.globals.distance(this.player.x, this.player.y, wallHitV.x, wallHitV.y);
-        console.log(distH + ", " + distV);
+            distV = this.globals.distance(this.pos.x, this.pos.y, wallHitV.x, wallHitV.y);
         if (distH < distV) {
             this.wallHit.x = wallHitH.x;
             this.wallHit.y = wallHitH.y;
+            this.distance = distH;
         }
         else {
             this.wallHit.x = wallHitV.x;
             this.wallHit.y = wallHitV.y;
+            this.distance = distV;
         }
     };
     Ray.prototype.draw = function () {
@@ -299,12 +332,39 @@ var Ray = /** @class */ (function () {
         var destinyX = this.wallHit.x;
         var destinyY = this.wallHit.y;
         this.globals.ctx.beginPath();
-        this.globals.ctx.moveTo(this.player.x, this.player.y);
+        this.globals.ctx.moveTo(this.pos.x, this.pos.y);
         this.globals.ctx.lineTo(destinyX, destinyY);
         this.globals.ctx.strokeStyle = 'red';
         this.globals.ctx.stroke();
     };
+    Ray.prototype.render = function () {
+        this.cast();
+        var realWallHeight = 500 / this.distance * (250 / 2);
+        var y0 = ~~(this.globals.height / 2) - ~~(realWallHeight / 2);
+        var y1 = y0 + realWallHeight;
+        var x = this.column;
+        this.globals.ctx.beginPath();
+        this.globals.ctx.moveTo(x, y0);
+        this.globals.ctx.lineTo(x, y1);
+        this.globals.ctx.strokeStyle = '#666666';
+        this.globals.ctx.stroke();
+    };
+    Ray.prototype.setPos = function (pos) {
+        this.pos = pos;
+    };
+    Ray.prototype.setAlpha = function (alpha) {
+        this.alpha = alpha;
+    };
     return Ray;
+}());
+var Column = /** @class */ (function () {
+    function Column(globals, initPos, distance) {
+        this.maxHeight = 0; //alto maximo del muro en pixeles
+        this.start = new Point(0, 0);
+        this.end = new Point(0, 0);
+        this.maxHeight = globals.height;
+    }
+    return Column;
 }());
 var Tile = /** @class */ (function () {
     function Tile(type) {
