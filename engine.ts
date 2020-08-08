@@ -19,7 +19,7 @@ window.onload = () => {
 
 function gameLoop(globals: Globals, map: Map, player: Player): void {
     deleteCanvas(globals);
-    //map.draw();
+    map.draw();
     player.draw();
     player.update();
 }
@@ -177,8 +177,8 @@ class Player implements IDrawable, IUpdatable, IMobible {
 
         //dibujado de los rayos
         for (let ray of this.rays) {
-            //ray.draw();
-            ray.render();
+            ray.draw();
+            //ray.render();
         }
             
 

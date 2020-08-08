@@ -15,7 +15,7 @@ window.onload = function () {
 };
 function gameLoop(globals, map, player) {
     deleteCanvas(globals);
-    //map.draw();
+    map.draw();
     player.draw();
     player.update();
 }
@@ -137,8 +137,8 @@ var Player = /** @class */ (function () {
         //dibujado de los rayos
         for (var _i = 0, _a = this.rays; _i < _a.length; _i++) {
             var ray = _a[_i];
-            //ray.draw();
-            ray.render();
+            ray.draw();
+            //ray.render();
         }
         //personaje
         this.globals.ctx.fillStyle = this.playerColor;
