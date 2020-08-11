@@ -15,7 +15,7 @@ window.onload = function () {
 };
 function gameLoop(globals, map, player) {
     deleteCanvas(globals);
-    map.draw();
+    //map.draw();
     player.draw();
     player.update();
 }
@@ -30,7 +30,7 @@ var Globals = /** @class */ (function () {
         this.width = 0;
         this.height = 0;
         this.canvas = document.querySelector('#canvas');
-        this.canvas.width = document.body.clientHeight; //document.body.clientWidth;
+        this.canvas.width = document.body.clientWidth; //document.body.clientWidth;
         this.canvas.height = document.body.clientHeight;
         this.ctx = this.canvas.getContext('2d');
         this.width = this.canvas.width;
@@ -137,8 +137,8 @@ var Player = /** @class */ (function () {
         //dibujado de los rayos
         for (var _i = 0, _a = this.rays; _i < _a.length; _i++) {
             var ray = _a[_i];
-            ray.draw();
-            //ray.render();
+            //ray.draw();
+            ray.render();
         }
         //personaje
         this.globals.ctx.fillStyle = this.playerColor;
@@ -171,6 +171,7 @@ var Player = /** @class */ (function () {
             ray.setPos(this.pos);
             ray.setAlpha(beta);
         }
+        console.log(this.rays[0].distance);
     };
     Player.prototype.move = function (dir) {
         switch (dir) {
@@ -339,14 +340,19 @@ var Ray = /** @class */ (function () {
     };
     Ray.prototype.render = function () {
         this.cast();
-        var realWallHeight = 500 / this.distance * (250 / 2);
+        //let realWallHeight = 500 / this.distance * (250 / 2); 
+        var realWallHeight = this.globals.height / this.distance * (this.globals.height / 4);
         var y0 = ~~(this.globals.height / 2) - ~~(realWallHeight / 2);
         var y1 = y0 + realWallHeight;
         var x = this.column;
+        var color = 255 - (this.distance / 5);
+        if (color < 0)
+            color = 0;
+        //console.log(this.distance);
         this.globals.ctx.beginPath();
         this.globals.ctx.moveTo(x, y0);
         this.globals.ctx.lineTo(x, y1);
-        this.globals.ctx.strokeStyle = '#666666';
+        this.globals.ctx.strokeStyle = "rgb(" + color + ", " + color + ", " + color + ")";
         this.globals.ctx.stroke();
     };
     Ray.prototype.setPos = function (pos) {

@@ -19,7 +19,7 @@ window.onload = () => {
 
 function gameLoop(globals: Globals, map: Map, player: Player): void {
     deleteCanvas(globals);
-    map.draw();
+    //map.draw();
     player.draw();
     player.update();
 }
@@ -41,7 +41,7 @@ class Globals {
 
     constructor() {
         this.canvas = document.querySelector<HTMLCanvasElement>('#canvas');
-        this.canvas.width = document.body.clientHeight;//document.body.clientWidth;
+        this.canvas.width = document.body.clientWidth;//document.body.clientWidth;
         this.canvas.height = document.body.clientHeight;
         this.ctx = this.canvas.getContext('2d');
 
@@ -177,8 +177,8 @@ class Player implements IDrawable, IUpdatable, IMobible {
 
         //dibujado de los rayos
         for (let ray of this.rays) {
-            ray.draw();
-            //ray.render();
+            //ray.draw();
+            ray.render();
         }
             
 
@@ -217,6 +217,8 @@ class Player implements IDrawable, IUpdatable, IMobible {
             ray.setPos(this.pos);
             ray.setAlpha(beta);
         }
+
+        console.log(this.rays[0].distance);
         
     }
 
@@ -449,15 +451,21 @@ class Ray implements IDrawable, IRenderable {
     render(): void {
         this.cast();
 
-        let realWallHeight = 500 / this.distance * (250 / 2); 
+        //let realWallHeight = 500 / this.distance * (250 / 2); 
+        let realWallHeight = this.globals.height / this.distance * (this.globals.height / 4); 
         let y0: number =  ~~(this.globals.height / 2) - ~~(realWallHeight / 2);
         let y1: number = y0 + realWallHeight;
         let x = this.column;
 
+        let color: number = 255 - (this.distance / 5);
+        if (color < 0) 
+            color = 0;
+        //console.log(this.distance);
+
         this.globals.ctx.beginPath();
         this.globals.ctx.moveTo(x, y0);
         this.globals.ctx.lineTo(x, y1);
-        this.globals.ctx.strokeStyle = '#666666';
+        this.globals.ctx.strokeStyle = `rgb(${color}, ${color}, ${color})`;
         this.globals.ctx.stroke();
     }
 
